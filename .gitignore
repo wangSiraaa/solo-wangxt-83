@@ -1,0 +1,23 @@
+# Local credentials and certificates must remain outside the published exercise.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.token
+secrets/
+
+# Local runtimes and generated state.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+dist/
+*.db
+*.sqlite
+*.sqlite3
