@@ -95,6 +95,10 @@ def moment_table(vehicle: VehicleSpec, boxes: list[BoxSpec]) -> dict:
             "limit_mm": vehicle.max_lateral_offset_mm,
             "ok": abs(cg[1] - vehicle.cargo_w / 2) <= vehicle.max_lateral_offset_mm + 1e-6,
         }
+    elif not rows:
+        # 空车（全部卸完）：轴荷即空车轴荷，横向无偏移
+        axle = axle_loads(vehicle, 0.0, vehicle.front_axle_x)
+        lateral = {"offset_mm": 0.0, "limit_mm": vehicle.max_lateral_offset_mm, "ok": True}
 
     return {
         "rows": rows,

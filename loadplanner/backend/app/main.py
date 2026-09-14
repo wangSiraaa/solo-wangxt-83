@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 from . import models, schemas
 from .analysis import box_spec, build_state, load_plan, vehicle_spec
 from .db import Base, engine, get_db
+from .domain import allowed_codes, dims_for
 from .export import build_csv
-from .solver import solve_positions
+from .route import fits_orientation, simulate_route, vehicle_doors
+from .solver import OBJECTIVE_TEXT, solve_positions
 
 
 @asynccontextmanager
@@ -159,6 +161,49 @@ def delete_placement(placement_id: int, db: Session = Depends(get_db)):
     return build_state(db, load_plan(db, plan_id))
 
 
+# ---------- 站点与线路 ----------
+
+@app.patch("/api/plans/{plan_id}/stops")
+def update_stops(plan_id: int, body: schemas.StopsUpdate, db: Session = Depends(get_db)):
+    plan = _get_plan_or_404(db, plan_id)
+    seqs = [s.seq for s in body.stops]
+    if len(set(seqs)) != len(seqs):
+        raise HTTPException(422, "站点序号重复")
+    for s in body.stops:
+        bad = [a for a in s.access if a not in ("rear", "side")]
+        if bad:
+            raise HTTPException(422, f"未知可接近方向: {bad}")
+    plan.stops_json = [s.model_dump() for s in body.stops]
+    valid_seqs = set(seqs)
+    for pid, seq in body.assignments.items():
+        pi = db.get(models.PlanItem, int(pid))
+        if pi is None or pi.plan_id != plan.id:
+            raise HTTPException(404, f"该方案中不存在货物 {pid}")
+        if seq is not None and seq not in valid_seqs:
+            raise HTTPException(422, f"站点 {seq} 不存在")
+        pi.stop_seq = seq
+    db.commit()
+    db.expire_all()
+    return build_state(db, load_plan(db, plan_id))
+
+
+@app.get("/api/plans/{plan_id}/route")
+def replay_route(plan_id: int, db: Session = Depends(get_db)):
+    """从同一清单（当前摆放 + 站点定义）确定性重放全程，逐站给出状态。"""
+    plan = _get_plan_or_404(db, plan_id)
+    boxes = [box_spec(pi) for pi in plan.plan_items]
+    unplaced = [b.label for b in boxes if not b.placed]
+    if unplaced:
+        raise HTTPException(409, {
+            "detail": "存在未摆放货物，无法重放线路。请先求解或完成人工摆放。",
+            "items": unplaced,
+        })
+    result = simulate_route(vehicle_spec(plan.vehicle), boxes,
+                            plan.stops_json or [], plan.allow_stacking)
+    result["plan_id"] = plan.id
+    return result
+
+
 # ---------- 求解 ----------
 
 @app.post("/api/plans/{plan_id}/solve")
@@ -179,12 +224,47 @@ def solve_plan(plan_id: int, db: Session = Depends(get_db)):
         state["solve_status"] = "NOTHING_TO_SOLVE"
         return state
 
-    result = solve_positions(vehicle_spec(plan.vehicle), boxes, plan.allow_stacking)
+    # 站点可接近性预检：分配到站点的货物必须存在能通过该站可用门的朝向
+    v = vehicle_spec(plan.vehicle)
+    stops = plan.stops_json or []
+    stop_access = {s["seq"]: s.get("access", ["rear"]) for s in stops}
+    doors = vehicle_doors(v)
+    unsatisfiable = []
+    for b in boxes:
+        if b.stop_seq is None:
+            continue
+        if b.stop_seq not in stop_access:
+            unsatisfiable.append({"stop_seq": b.stop_seq, "label": b.label,
+                                  "reason": "站点不存在"})
+            continue
+        usable = [d for d in doors if d["kind"] in stop_access[b.stop_seq]]
+        fits = any(
+            fits_orientation(dims_for(b.l, b.w, b.h, c), d)
+            for c in allowed_codes(b.no_flip, b.can_rotate_yaw)
+            for d in usable
+        )
+        if not fits:
+            unsatisfiable.append({
+                "stop_seq": b.stop_seq, "label": b.label,
+                "reason": f"箱体截面 {b.l}×{b.w}×{b.h} 在任何允许朝向下都无法通过 "
+                          f"{'/'.join(stop_access[b.stop_seq])} 门",
+            })
+    if unsatisfiable:
+        raise HTTPException(409, {
+            "detail": "存在无法满足的站点：货物无法通过该站可用的门",
+            "unsatisfiable_stops": unsatisfiable,
+            "objective": OBJECTIVE_TEXT,
+        })
+
+    result = solve_positions(v, boxes, plan.allow_stacking,
+                             doors=doors if stops else None,
+                             stop_access=stop_access if stops else None)
     if result["status"] not in ("OPTIMAL", "FEASIBLE"):
         raise HTTPException(409, {
             "detail": f"无可行解（{result['status']}）。可能是锁定摆放导致轴荷/空间冲突，"
                       "请检查锁定件或解除部分锁定。",
             "status": result["status"],
+            "objective": OBJECTIVE_TEXT,
         })
 
     # 用求解结果替换未锁定摆放
@@ -205,6 +285,18 @@ def solve_plan(plan_id: int, db: Session = Depends(get_db)):
     db.expire_all()
     state = build_state(db, load_plan(db, plan_id))
     state["solve_status"] = result["status"]
+    state["objective"] = OBJECTIVE_TEXT
+    if stops:
+        state["stop_report"] = [
+            {
+                "seq": s["seq"],
+                "name": s["name"],
+                "cancelled": bool(s.get("cancelled")),
+                "boxes": sum(1 for b in boxes if b.stop_seq == s["seq"]),
+                "satisfiable": True,
+            }
+            for s in stops
+        ]
     return state
 
 

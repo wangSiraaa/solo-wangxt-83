@@ -18,6 +18,9 @@ def vehicle_spec(v: models.Vehicle) -> VehicleSpec:
         max_payload_kg=v.max_payload_kg,
         floor_rating_kg_m2=v.floor_rating_kg_m2,
         max_lateral_offset_mm=v.max_lateral_offset_mm,
+        rear_door_w=v.rear_door_w, rear_door_h=v.rear_door_h,
+        side_door_x=v.side_door_x, side_door_w=v.side_door_w,
+        side_door_h=v.side_door_h,
     )
 
 
@@ -40,6 +43,7 @@ def box_spec(pi: models.PlanItem) -> BoxSpec:
         orientation=p.orientation if p else 0,
         locked=bool(p and p.locked),
         source=p.source if p else "manual",
+        stop_seq=pi.stop_seq,
     )
 
 
@@ -70,6 +74,7 @@ def build_state(db: Session, plan: models.Plan) -> dict:
             "plan_item_id": pi.id,
             "key": b.key,
             "label": b.label,
+            "stop_seq": pi.stop_seq,
             "item": {
                 "id": pi.item.id,
                 "name": pi.item.name,
@@ -101,6 +106,7 @@ def build_state(db: Session, plan: models.Plan) -> dict:
             "name": plan.name,
             "vehicle_id": plan.vehicle_id,
             "allow_stacking": plan.allow_stacking,
+            "stops": plan.stops_json or [],
         },
         "vehicle": {
             "id": plan.vehicle.id,
@@ -113,6 +119,9 @@ def build_state(db: Session, plan: models.Plan) -> dict:
             "max_payload_kg": v.max_payload_kg,
             "floor_rating_kg_m2": v.floor_rating_kg_m2,
             "max_lateral_offset_mm": v.max_lateral_offset_mm,
+            "rear_door_w": v.rear_door_w, "rear_door_h": v.rear_door_h,
+            "side_door_x": v.side_door_x, "side_door_w": v.side_door_w,
+            "side_door_h": v.side_door_h,
         },
         "rows": rows,
         "analysis": {

@@ -43,7 +43,7 @@ function PlacementEditor({ row, onLock, onRemove, busy }) {
   );
 }
 
-export default function ItemPanel({ rows, selectedKey, onSelect, onLock, onRemove, onFixWeight, busy }) {
+export default function ItemPanel({ rows, stops, selectedKey, onSelect, onLock, onRemove, onFixWeight, onAssignStop, busy }) {
   const [weightDraft, setWeightDraft] = useState({});
 
   return (
@@ -97,6 +97,23 @@ export default function ItemPanel({ rows, selectedKey, onSelect, onLock, onRemov
               )}
               {it.no_flip && <span className="tag">禁止倒置</span>}
               {it.stackable && <span className="tag">可堆叠≤{it.max_top_load_kg ?? "∞"}kg</span>}
+              {stops.length > 0 && (
+                <select
+                  className="stop-select"
+                  value={row.stop_seq ?? ""}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) =>
+                    onAssignStop(row, e.target.value === "" ? null : Number(e.target.value))
+                  }
+                >
+                  <option value="">随车不卸</option>
+                  {stops.map((s) => (
+                    <option key={s.seq} value={s.seq}>
+                      站点{s.seq} {s.name}{s.cancelled ? "（已取消）" : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             {p && (
               <div className="item-pos">

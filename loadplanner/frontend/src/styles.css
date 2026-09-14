@@ -39,6 +39,14 @@ button.ghost { background: transparent; }
   background: #5c1f1f; color: #ffb3b3; padding: 8px 14px;
   border-bottom: 1px solid #7a2a2a;
 }
+.objective-banner {
+  background: #1d3a5f; color: #9cc7ff; padding: 5px 14px; font-size: 12px;
+  border-bottom: 1px solid #2e3a4c;
+}
+.replay-banner {
+  background: #4a3a10; color: #ffe89a; padding: 5px 14px; font-size: 12px;
+  border-bottom: 1px solid #6b5a10;
+}
 
 .main { display: flex; flex: 1; min-height: 0; }
 .left { width: 320px; overflow-y: auto; border-right: 1px solid #2e3a4c; padding: 10px; }
@@ -122,3 +130,45 @@ button.ghost { background: transparent; }
 }
 .qty-row { display: flex; justify-content: space-between; align-items: center; }
 .qty-row input { width: 56px; background: #141c26; color: #dfe7f0; border: 1px solid #3d4b61; border-radius: 3px; padding: 2px 4px; }
+
+/* ---- 站点与线路 ---- */
+.route-panel { margin-bottom: 14px; }
+.route-panel h3 { margin: 4px 0 8px; font-size: 14px; }
+.stop-editor { margin-bottom: 8px; }
+.stop-row {
+  display: flex; align-items: center; gap: 6px; font-size: 12px;
+  padding: 4px 6px; background: #1c2733; border: 1px solid #2e3a4c;
+  border-radius: 5px; margin-bottom: 4px;
+}
+.stop-row.cancelled { opacity: 0.55; border-style: dashed; }
+.stop-row .seq { color: #7fb3ff; font-weight: 700; }
+.stop-row input[type="text"], .stop-row input:not([type]) {
+  width: 72px; background: #141c26; color: #dfe7f0;
+  border: 1px solid #3d4b61; border-radius: 3px; padding: 2px 4px;
+}
+.stop-row label { display: flex; align-items: center; gap: 2px; color: #9fb0c3; }
+.stop-row button { padding: 1px 6px; font-size: 11px; }
+.route-error { color: #ff9aa8; font-size: 12px; margin: 6px 0; }
+.route-verdict {
+  padding: 6px 10px; border-radius: 5px; margin: 8px 0; font-weight: 600;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.route-verdict.ok { background: #1e4d33; color: #8af0b8; }
+.route-verdict.bad { background: #5c1f1f; color: #ffb3b3; }
+.moves-total { font-size: 12px; font-weight: 400; }
+.stage-stepper { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.stage-btn { min-width: 40px; }
+.stage-btn.ok { border-color: #2ecc71; }
+.stage-btn.bad { border-color: #e74c3c; color: #ff9aa8; }
+.stage-btn.active { background: #2f6fed; border-color: #2f6fed; color: #fff; }
+.stage-detail {
+  background: #1c2733; border: 1px solid #2e3a4c; border-radius: 6px;
+  padding: 8px 10px; font-size: 12px; color: #c6d2df;
+}
+.stage-detail > div { margin-top: 4px; }
+.move-line { color: #ffd97a; }
+.stage-axle { color: #9cc7ff; }
+.stop-select {
+  background: #141c26; color: #9cc7ff; border: 1px solid #3d4b61;
+  border-radius: 3px; font-size: 11px; padding: 1px 3px;
+}

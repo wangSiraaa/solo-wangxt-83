@@ -24,6 +24,9 @@ export const api = {
   patchItem: (id, body) => req(`/items/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   solve: (planId) => req(`/plans/${planId}/solve`, { method: "POST" }),
   clearUnlocked: (planId) => req(`/plans/${planId}/clear-unlocked`, { method: "POST" }),
+  setStops: (planId, body) =>
+    req(`/plans/${planId}/stops`, { method: "PATCH", body: JSON.stringify(body) }),
+  route: (planId) => req(`/plans/${planId}/route`),
   upsertPlacement: (planId, body) =>
     req(`/plans/${planId}/placements`, { method: "POST", body: JSON.stringify(body) }),
   deletePlacement: (placementId) => req(`/placements/${placementId}`, { method: "DELETE" }),

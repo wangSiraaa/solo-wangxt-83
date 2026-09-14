@@ -104,6 +104,31 @@ function CgMarker({ cg, vehicle }) {
   );
 }
 
+function Doors({ vehicle }) {
+  const rw = vehicle.rear_door_w ?? vehicle.cargo_w;
+  const rh = vehicle.rear_door_h ?? vehicle.cargo_h;
+  return (
+    <>
+      {/* 尾门（x = 车尾） */}
+      <mesh position={p3(vehicle.cargo_l, vehicle.cargo_w / 2, rh / 2)} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[rw * S, rh * S]} />
+        <meshBasicMaterial color="#2ecc71" transparent opacity={0.18} side={2} depthWrite={false} />
+      </mesh>
+      {/* 侧门（y = 右侧墙） */}
+      {vehicle.side_door_w != null && (
+        <mesh position={p3(
+          (vehicle.side_door_x ?? 0) + vehicle.side_door_w / 2,
+          vehicle.cargo_w,
+          (vehicle.side_door_h ?? vehicle.cargo_h) / 2,
+        )}>
+          <planeGeometry args={[vehicle.side_door_w * S, (vehicle.side_door_h ?? vehicle.cargo_h) * S]} />
+          <meshBasicMaterial color="#e67e22" transparent opacity={0.25} side={2} depthWrite={false} />
+        </mesh>
+      )}
+    </>
+  );
+}
+
 export default function Scene3D({ state, selectedKey, onSelect }) {
   const { vehicle, rows, analysis } = state;
   const violatedKeys = useMemo(() => {
@@ -123,6 +148,7 @@ export default function Scene3D({ state, selectedKey, onSelect }) {
       <directionalLight position={[6, 10, 4]} intensity={1.1} />
       <CargoHold vehicle={vehicle} />
       <AxleMarkers vehicle={vehicle} />
+      <Doors vehicle={vehicle} />
       {rows
         .filter((r) => r.placement)
         .map((r) => (

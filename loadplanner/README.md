@@ -21,6 +21,17 @@
 - 人工摆放可**锁定**，求解器只计算剩余部分；锁定导致无可行解时返回 409 并说明；
 - 导出**逐件位置 + 力矩核对表**（CSV/JSON），可手工复核每件对前轴的力臂与力矩，而非只看三维动画。
 
+## 多站点线路（沿途卸货）
+
+初始装载合规不代表中途合规。方案可定义**有序站点**（每站可接近方向：尾门/侧门、可临时取消），货物分配到站点或"随车不卸"：
+
+- **逐站重放**：`GET /api/plans/{id}/route` 从同一清单（当前摆放 + 站点定义）确定性重放：初始状态 → 每站卸货后状态，逐站检查重心、轴荷、横向偏移与**剩余箱体支撑**（下层被提前取走 → 上层悬空报错）。**任一中间状态失败，整程方案即无效**；
+- **可接近性与倒箱**：卸货只能沿直线滑出（尾门 +x / 侧门 +y），不允许穿透其他箱体；被后卸货物挡住的箱子给出**搬移次数**与具体阻挡清单；压在上方的一律先移除；侧门要求箱体纵向对正门口且截面能通过；
+- **站点取消**：该站货物保留在车上，后续所有阶段重新核算（样例H：取消后末段后轴超限）；
+- **站点感知求解**：允许为减少倒箱调整初始位置，但锁定（固定）货物不动。目标明确写入响应：`min 4000·阻挡对数 + 16·占用长度 + 4·Σ高度 + Σx`；硬约束含"先卸者不得支撑后卸/随车者"、朝向须能通过卸货站点的门；无法满足的站点（如货物截面超过该站唯一可用的门）在求解前以 409 明确列出。
+
+简化假设：尾门在车尾截面、侧门在右侧墙纵向区间；搬移次数 = 阻挡箱数（不递归计算阻挡的阻挡）；侧门不允许先纵向挪动再横移。
+
 ## 快速开始
 
 ### 方式一：Docker（PostgreSQL + 后端）
@@ -51,7 +62,7 @@ npm run dev                    # :5173，代理 /api 到 :8000
 ### 运行测试
 
 ```bash
-cd backend && python -m pytest -q     # 31 个测试：物理/校验/求解器/端到端 API
+cd backend && python -m pytest -q     # 44 个测试：物理/校验/求解器/线路/端到端 API
 ```
 
 ## 内置验证样例
@@ -63,19 +74,25 @@ cd backend && python -m pytest -q     # 31 个测试：物理/校验/求解器/�
 | C 禁止倒置 | 仪器柜被锁定为侧放朝向 | 朝向约束校验；求解器只选保持竖直的朝向 |
 | D 底板承压超限 | 400 kg 钢锭箱面压 2500 kg/m² > 2000 | 承压超限定位到具体箱体 |
 | E 未知重量 | 待称重件未补录 | 轴荷结论判无效 + 求解 422，补录后可解 |
+| F 重货先卸后轴偏载 | 初始后轴 2768 kg 合规，站点1 卸完前部重件后 2811 kg > 2800 kg（末段还出现横向偏移） | 初始合规 ≠ 中途合规；任一阶段失败整程无效 |
+| G 下层支撑被提前取走 | 底箱在站点1 卸走，顶箱（站点2）悬空 | 逐站检查剩余箱体支撑 |
+| H 站点临时取消 | 站点2 取消后尾部设备保留到末段，后轴 2846 kg > 2800 kg；恢复站点则整程有效 | 取消站货物保留，全程重算 |
+| I 先卸货物被堵需倒箱 | 周转箱A 被两个后卸周转箱堵住 → 倒箱 2 次（全程 3 次）；解锁重排后站点1 倒箱 0 次 | 搬移次数定位到阻挡清单；求解器以减少倒箱为目标调整初始位置 |
 
 ## API 摘要
 
 ```
-GET/POST  /api/vehicles                 车辆（车厢尺寸、轴位、轴荷限值、面压额定）
+GET/POST  /api/vehicles                 车辆（车厢尺寸、轴位、轴荷限值、面压额定、尾门/侧门）
 GET/POST  /api/items                    箱体（尺寸、重量可空、朝向/堆叠约束）
 PATCH     /api/items/{id}               补录重量等
 GET/POST  /api/plans                    方案
 GET       /api/plans/{id}               完整状态：摆放 + 违规 + 质心/轴荷 + 力矩表
 POST      /api/plans/{id}/placements    人工摆放并锁定（upsert）
 DELETE    /api/placements/{id}          移除摆放（交还求解器）
-POST      /api/plans/{id}/solve         求解剩余部分（保留锁定件）
+POST      /api/plans/{id}/solve         求解剩余部分（保留锁定件；响应含目标与站点报告）
 POST      /api/plans/{id}/clear-unlocked
+PATCH     /api/plans/{id}/stops         设置站点（顺序/可接近方向/取消）与货物分配
+GET       /api/plans/{id}/route         逐站重放：每站卸货后的重心/轴荷/支撑/倒箱
 GET       /api/plans/{id}/export.csv    力矩核对表（含轴荷核算与违规清单）
 GET       /api/plans/{id}/export.json
 ```
@@ -93,14 +110,16 @@ backend/
   app/domain.py      领域模型、朝向编码、AABB 相交
   app/physics.py     质心、双轴轴荷、逐件力矩表
   app/validation.py  逐对象定位的违规校验
-  app/solver.py      OR-Tools CP-SAT 求解（轴荷/横向约束内化）
+  app/route.py       门/可接近方向、走廊阻挡（倒箱）、逐站仿真
+  app/solver.py      OR-Tools CP-SAT 求解（轴荷/横向/站点约束内化）
   app/analysis.py    ORM → 领域对象装配、方案状态
   app/main.py        FastAPI 端点
-  app/seed.py        五个演示样例
-  tests/             31 个测试
+  app/seed.py        九个演示样例
+  tests/             44 个测试
 frontend/
-  src/components/Scene3D.jsx        车厢/箱体/质心/轴 三维视图
-  src/components/ItemPanel.jsx      货物清单与人工摆放锁定
+  src/components/Scene3D.jsx        车厢/箱体/质心/轴/门 三维视图
+  src/components/ItemPanel.jsx      货物清单、人工摆放锁定、站点分配
+  src/components/RoutePanel.jsx     站点编辑与逐站重放
   src/components/ViolationPanel.jsx 违规列表（点击定位）
   src/components/MomentTable.jsx    力矩核对表与轴荷条
 ```

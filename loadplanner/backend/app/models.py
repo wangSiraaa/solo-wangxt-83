@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -23,6 +23,12 @@ class Vehicle(Base):
     max_payload_kg: Mapped[float] = mapped_column(Float)
     floor_rating_kg_m2: Mapped[float] = mapped_column(Float, default=1500.0)
     max_lateral_offset_mm: Mapped[float] = mapped_column(Float, default=250.0)
+    # 门：尾门缺省与车厢同截面；侧门在 y=cargo_w 一侧，NULL 表示无侧门
+    rear_door_w: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rear_door_h: Mapped[float | None] = mapped_column(Float, nullable=True)
+    side_door_x: Mapped[float | None] = mapped_column(Float, nullable=True)
+    side_door_w: Mapped[float | None] = mapped_column(Float, nullable=True)
+    side_door_h: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class Item(Base):
@@ -48,6 +54,8 @@ class Plan(Base):
     name: Mapped[str] = mapped_column(String(200))
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"))
     allow_stacking: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 有序站点：[{"seq":1,"name":"站点1","access":["rear","side"],"cancelled":false}]
+    stops_json: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     vehicle: Mapped[Vehicle] = relationship()
@@ -65,6 +73,7 @@ class PlanItem(Base):
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
     copy_index: Mapped[int] = mapped_column(Integer, default=1)
     label: Mapped[str] = mapped_column(String(200))
+    stop_seq: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None=随车不卸
 
     plan: Mapped[Plan] = relationship(back_populates="plan_items")
     item: Mapped[Item] = relationship()

@@ -76,6 +76,12 @@ class VehicleSpec:
     max_payload_kg: float
     floor_rating_kg_m2: float  # 底板面承压上限 kg/m²
     max_lateral_offset_mm: float  # 允许的总质心横向偏移
+    # 门：尾门默认与车厢同截面；侧门在 y=cargo_w 一侧，None 表示无侧门
+    rear_door_w: Optional[float] = None
+    rear_door_h: Optional[float] = None
+    side_door_x: Optional[float] = None   # 侧门起点（距前壁）
+    side_door_w: Optional[float] = None   # 侧门纵向宽度
+    side_door_h: Optional[float] = None
 
     @property
     def wheelbase(self) -> float:
@@ -102,6 +108,7 @@ class BoxSpec:
     orientation: int = 0
     locked: bool = False
     source: str = "manual"      # manual | solver
+    stop_seq: Optional[int] = None  # 卸货站点序号；None = 随车不卸
 
     def dims(self) -> tuple[int, int, int]:
         return dims_for(self.l, self.w, self.h, self.orientation)

@@ -17,6 +17,11 @@ class VehicleIn(BaseModel):
     max_payload_kg: float
     floor_rating_kg_m2: float = 1500
     max_lateral_offset_mm: float = 250
+    rear_door_w: Optional[float] = None   # None → 与车厢同宽
+    rear_door_h: Optional[float] = None
+    side_door_x: Optional[float] = None   # None → 无侧门
+    side_door_w: Optional[float] = None
+    side_door_h: Optional[float] = None
 
 
 class VehicleOut(VehicleIn):
@@ -82,3 +87,15 @@ class PlacementIn(BaseModel):
     y: int = Field(ge=0)
     z: int = Field(ge=0)
     orientation: int = Field(ge=0, le=5)
+
+
+class StopIn(BaseModel):
+    seq: int = Field(ge=1)
+    name: str
+    access: list[str] = ["rear"]        # rear | side
+    cancelled: bool = False
+
+
+class StopsUpdate(BaseModel):
+    stops: list[StopIn]
+    assignments: dict[int, Optional[int]] = {}  # plan_item_id -> stop_seq（null=随车）
